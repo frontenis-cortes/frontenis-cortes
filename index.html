@@ -361,21 +361,6 @@ body{
 }
 .rule-closing b{font-family:"Arial Black","Franklin Gothic Bold",sans-serif;letter-spacing:.02em;}
 
-/* ---------- PENDING CHANGES BAR ---------- */
-.pending-bar{
-  position:fixed;left:0;right:0;bottom:0;z-index:40;
-  background:var(--navy-900);color:#fff;
-  padding:12px 18px;box-shadow:0 -6px 24px rgba(0,0,0,.25);
-  display:none;
-}
-.pending-bar.show{display:block;}
-.pending-inner{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;}
-.pending-inner .count{font-weight:800;}
-.pending-inner .count span{color:#ffd27a;}
-.pending-actions{display:flex;gap:8px;flex-wrap:wrap;}
-.pending-bar .btn{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;}
-.pending-bar .btn.primary{background:var(--blue);border-color:var(--blue);}
-.pending-bar .btn.danger{background:rgba(209,73,91,.15);color:#ff9aa6;border-color:rgba(209,73,91,.4);}
 
 /* ---------- MODAL ---------- */
 .overlay{
@@ -396,13 +381,6 @@ body{
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;}
 .modal .error{color:var(--red);font-size:13px;margin:-6px 0 12px;display:none;}
 .modal .error.show{display:block;}
-.change-item{border-bottom:1px solid var(--line);padding:10px 0;font-size:13px;}
-.change-item:last-child{border-bottom:none;}
-.change-item .who{font-weight:800;font-size:12.5px;color:var(--muted);margin-bottom:3px;}
-.change-item .diff{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
-.change-item .old{color:var(--red);text-decoration:line-through;}
-.change-item .new{color:var(--green);font-weight:700;}
-
 .empty-state{text-align:center;color:var(--muted);padding:40px 10px;font-size:14px;}
 .swap-source-info{
   background:#f2f6ff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
@@ -494,17 +472,6 @@ body{
   <button class="footer-editor-btn" id="roleBtn">Modo organizador</button>
 </div>
 
-<div class="pending-bar" id="pendingBar">
-  <div class="pending-inner">
-    <div class="count">Cambios pendientes: <span id="pendingCount">0</span></div>
-    <div class="pending-actions">
-      <button class="btn" id="viewChangesBtn">Ver cambios</button>
-      <button class="btn danger" id="resetBtn">Descartar todo</button>
-      <button class="btn primary" id="exportBtn">Exportar cambios</button>
-    </div>
-  </div>
-</div>
-
 <div class="overlay" id="pinOverlay">
   <div class="modal">
     <h3>Activar modo editor</h3>
@@ -518,19 +485,6 @@ body{
   </div>
 </div>
 
-<div class="overlay" id="changesOverlay">
-  <div class="modal" style="max-width:560px;">
-    <h3>Cambios pendientes</h3>
-    <p id="changesModalDesc">Estos cambios ya son visibles para todos en tiempo real. Este listado es solo un registro por si quieres guardar constancia de qué se ha modificado.</p>
-    <div id="changesList" style="max-height:320px;overflow-y:auto;margin-bottom:14px;"></div>
-    <textarea id="summaryText" readonly></textarea>
-    <div class="modal-actions">
-      <button class="btn ghost" id="changesClose">Cerrar</button>
-      <button class="btn" id="copySummaryBtn">Copiar resumen</button>
-      <button class="btn primary" id="downloadJsonBtn">Descargar JSON</button>
-    </div>
-  </div>
-</div>
 
 <div class="overlay" id="swapOverlay">
   <div class="modal" style="max-width:480px;">
@@ -712,7 +666,7 @@ const RAW = {
     ]
   },
   domingoLiguilla: {
-    info: "Liguilla de 08:00 a 12:45 (último inicio) · Partidos de 15 minutos · Descanso mínimo de 60 minutos completos entre partidos de una misma pareja.",
+    info: "Liguilla de 08:00 a 12:45 (último inicio) · Partidos de 15 minutos.",
     matches: [
       [1,"08:00","B","Saúl Cuairán / Alberto Marco","Iñaki Tramullas / Guillermo Rodríguez"],
       [2,"08:15","B","David Royo / Dani Baigorri","Javier Borobia / Gonzalo Continente"],
@@ -737,7 +691,7 @@ const RAW = {
     ]
   },
   domingoElim: {
-    info: "Eliminatorias desde las 15:00, según los cruces resultantes de la liguilla. Referencia de cada llave entre paréntesis.",
+    info: "Eliminatorias desde las 15:00, según los cruces resultantes de la liguilla.",
     matches: [
       [1,"15:00","Octavos","1.º Grupo A","4.º Grupo D","O1"],
       [2,"15:20","Octavos","2.º Grupo C","3.º Grupo B","O2"],
@@ -855,18 +809,6 @@ function writeMatch(m){
   }
 }
 
-/* Overwrites the whole shared schedule back to the original — used only by "Descartar todo". */
-function resetAllShared(){
-  state.matches = JSON.parse(JSON.stringify(ORIGINAL));
-  renderMatches();
-  renderPendingBar();
-  if(firebaseReady){
-    dbRef.set(matchesToRecord(ORIGINAL)).catch(e => toast("No se pudo reiniciar en la nube: " + e.message));
-  } else {
-    persistLocal();
-  }
-}
-
 function matchMap(){ return Object.fromEntries(state.matches.map(m => [m.id, m])); }
 
 /* ---------- CLASIFICACIÓN (desempates: enfrentamientos directos > diferencial global > PF global) ---------- */
@@ -978,10 +920,6 @@ function isChanged(m){
   const o = ORIGINAL_MAP[m.id];
   if(!o) return false;
   return o.hora !== m.hora || o.p1 !== m.p1 || o.p2 !== m.p2 || o.grupo !== m.grupo || (o.ref||null) !== (m.ref||null) || (o.resultado||null) !== (m.resultado||null);
-}
-
-function pendingChanges(){
-  return state.matches.filter(isChanged);
 }
 
 function escapeHtml(s){
@@ -1192,7 +1130,6 @@ function performSwap(sourceId, targetId){
   src.grupo = tgt.grupo; src.p1 = tgt.p1; src.p2 = tgt.p2; src.ref = tgt.ref;
   tgt.grupo = tmp.grupo; tgt.p1 = tmp.p1; tgt.p2 = tmp.p2; tgt.ref = tmp.ref;
   renderMatches();
-  renderPendingBar();
   writeMatch(src);
   writeMatch(tgt);
   if(src.day === tgt.day){
@@ -1222,7 +1159,6 @@ function saveEdit(id, hora, p1, p2, resultado){
   m.resultado = (resultado || "").trim() || null;
   editingId = null;
   renderMatches();
-  renderPendingBar();
   writeMatch(m);
   toast(firebaseReady ? "Cambio guardado: ya es visible para todos." : "Cambio guardado en este navegador.");
   tryAutoResolveBracket();
@@ -1300,7 +1236,6 @@ function renderMatches(){
 
   if(list.length === 0){
     section.innerHTML = `<div class="empty-state">No hay partidos que coincidan con la búsqueda o el filtro.</div>`;
-    renderPendingBar();
     return;
   }
 
@@ -1353,7 +1288,6 @@ function renderMatches(){
     }
   }
   section.innerHTML = html;
-  renderPendingBar();
 }
 
 function dayInfoHTML(){
@@ -1499,20 +1433,6 @@ function renderClasificacion(){
   }).join("");
 }
 
-/* ---------- PENDING BAR / CHANGES MODAL ---------- */
-function renderPendingBar(){
-  const changes = pendingChanges();
-  const bar = document.getElementById("pendingBar");
-  document.getElementById("pendingCount").textContent = changes.length;
-  bar.classList.toggle("show", state.role === "editor" && changes.length > 0);
-}
-
-document.getElementById("resetBtn").addEventListener("click", () => {
-  if(!confirm("¿Descartar todos los cambios pendientes y volver al cuadrante original? Esto afecta a lo que ven todos.")) return;
-  resetAllShared();
-  toast("Cambios descartados para todos.");
-});
-
 function dayLabel(day, block){
   if(day === "viernes") return "Viernes";
   if(day === "sabado") return "Sábado";
@@ -1520,95 +1440,13 @@ function dayLabel(day, block){
   return day;
 }
 
-function buildChangeSummary(){
-  const changes = pendingChanges();
-  return changes.map(m => {
-    const o = ORIGINAL_MAP[m.id];
-    const parts = [];
-    if(o.hora !== m.hora) parts.push(`hora ${o.hora} → ${m.hora}`);
-    if(o.grupo !== m.grupo) parts.push(`grupo/fase ${o.grupo} → ${m.grupo}`);
-    if(o.p1 !== m.p1) parts.push(`pareja 1 "${o.p1}" → "${m.p1}"`);
-    if(o.p2 !== m.p2) parts.push(`pareja 2 "${o.p2}" → "${m.p2}"`);
-    if((o.ref||null) !== (m.ref||null)) parts.push(`referencia ${o.ref||"–"} → ${m.ref||"–"}`);
-    if((o.resultado||null) !== (m.resultado||null)) parts.push(`resultado ${o.resultado||"–"} → ${m.resultado||"–"}`);
-    return `${dayLabel(m.day, m.block)} · partido #${m.n}: ${parts.join("; ")}`;
-  }).join("\n");
-}
-
-function renderChangesModal(){
-  const changes = pendingChanges();
-  const list = document.getElementById("changesList");
-  if(changes.length === 0){
-    list.innerHTML = `<div class="empty-state">No hay cambios pendientes.</div>`;
-  } else {
-    list.innerHTML = changes.map(m => {
-      const o = ORIGINAL_MAP[m.id];
-      const rows = [];
-      if(o.hora !== m.hora) rows.push(`<div class="diff">Hora: <span class="old">${escapeHtml(o.hora)}</span> → <span class="new">${escapeHtml(m.hora)}</span></div>`);
-      if(o.grupo !== m.grupo) rows.push(`<div class="diff">Grupo/Fase: <span class="old">${escapeHtml(o.grupo)}</span> → <span class="new">${escapeHtml(m.grupo)}</span></div>`);
-      if(o.p1 !== m.p1) rows.push(`<div class="diff">Pareja 1: <span class="old">${escapeHtml(o.p1)}</span> → <span class="new">${escapeHtml(m.p1)}</span></div>`);
-      if(o.p2 !== m.p2) rows.push(`<div class="diff">Pareja 2: <span class="old">${escapeHtml(o.p2)}</span> → <span class="new">${escapeHtml(m.p2)}</span></div>`);
-      if((o.ref||null) !== (m.ref||null)) rows.push(`<div class="diff">Referencia: <span class="old">${escapeHtml(o.ref||"–")}</span> → <span class="new">${escapeHtml(m.ref||"–")}</span></div>`);
-      if((o.resultado||null) !== (m.resultado||null)) rows.push(`<div class="diff">Resultado: <span class="old">${escapeHtml(o.resultado||"–")}</span> → <span class="new">${escapeHtml(m.resultado||"–")}</span></div>`);
-      return `<div class="change-item"><div class="who">${dayLabel(m.day, m.block)} · partido #${m.n}</div>${rows.join("")}</div>`;
-    }).join("");
-  }
-  document.getElementById("summaryText").value = buildChangeSummary() || "(sin cambios)";
-}
-
-document.getElementById("viewChangesBtn").addEventListener("click", () => {
-  renderChangesModal();
-  document.getElementById("changesOverlay").classList.add("show");
-});
-document.getElementById("changesClose").addEventListener("click", () => document.getElementById("changesOverlay").classList.remove("show"));
 document.getElementById("swapClose").addEventListener("click", closeSwapModal);
 document.getElementById("swapSearchInput").addEventListener("input", e => renderSwapList(e.target.value));
 document.getElementById("swapConfirmCancel").addEventListener("click", cancelSwapSelection);
 document.getElementById("swapConfirmOk").addEventListener("click", applySwapSelection);
 
-document.getElementById("copySummaryBtn").addEventListener("click", async () => {
-  const text = document.getElementById("summaryText").value;
-  try{
-    await navigator.clipboard.writeText(text);
-    toast("Resumen copiado al portapapeles.");
-  }catch(e){
-    document.getElementById("summaryText").focus();
-    document.getElementById("summaryText").select();
-    toast("Selecciona y copia manualmente (Ctrl+C).");
-  }
-});
-
-async function exportChanges(){
-  const changes = pendingChanges().map(m => {
-    const o = ORIGINAL_MAP[m.id];
-    return { day: m.day, block: m.block || null, n: m.n, original: {hora:o.hora, grupo:o.grupo, p1:o.p1, p2:o.p2, ref:o.ref||null, resultado:o.resultado||null}, updated: {hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref:m.ref||null, resultado:m.resultado||null} };
-  });
-  const payload = {
-    torneo: "III Verano Frontenis Cortes",
-    exportadoDesde: "modo editor",
-    totalCambios: changes.length,
-    cambios: changes,
-    resumen: buildChangeSummary()
-  };
-  const filename = `frontenis-cortes-cambios-${new Date().toISOString().slice(0,10)}.json`;
-  const data = JSON.stringify(payload, null, 2);
-  if(window.claude && window.claude.downloads){
-    try{
-      await window.claude.downloads.save({filename, data});
-      toast("Descarga solicitada. Confirma en el aviso del navegador.");
-      return;
-    }catch(e){ /* fall through to manual copy */ }
-  }
-  renderChangesModal();
-  document.getElementById("changesOverlay").classList.add("show");
-  toast("Descarga automática no disponible: copia el resumen manualmente.");
-}
-document.getElementById("exportBtn").addEventListener("click", exportChanges);
-document.getElementById("downloadJsonBtn").addEventListener("click", exportChanges);
-
 function renderAll(){
   renderMatches();
-  renderPendingBar();
 }
 
 initSync();
