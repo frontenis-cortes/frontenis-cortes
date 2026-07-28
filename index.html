@@ -404,8 +404,8 @@ body{
       <button class="tab" data-tab="domingo" role="tab">Domingo</button>
       <button class="tab" data-tab="todos" role="tab">Todos</button>
       <button class="tab" data-tab="grupos" role="tab">Grupos</button>
-      <button class="tab" data-tab="reglas" role="tab">Reglas</button>
       <button class="tab" data-tab="clasificacion" role="tab">Clasificación</button>
+      <button class="tab" data-tab="reglas" role="tab">Reglas</button>
     </div>
     <div class="role-area">
       <span class="role-chip" id="roleChip"><span class="dot"></span><span id="roleLabel">Visor</span></span>
@@ -1155,7 +1155,8 @@ function matchRowHTML(m){
     ? `<div class="drag-handle" title="Mantén pulsado y arrastra para intercambiar horario" onpointerdown="handlePointerDown('${m.id}', event)">⠿</div>`
     : `<div class="drag-handle disabled">⠿</div>`;
   const nLabel = state.activeTab === "todos" ? `${dayAbbrev(m.day)}${m.n}` : m.n;
-  return `<div class="match-row${changed ? " changed" : ""}" data-id="${m.id}">
+  const showChanged = changed && isEditor;
+  return `<div class="match-row${showChanged ? " changed" : ""}" data-id="${m.id}">
     ${dragHandle}
     <div class="m-n">${nLabel}</div>
     <div class="m-time">${escapeHtml(m.hora)}</div>
