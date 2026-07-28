@@ -254,6 +254,7 @@ body{
 .m-n{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;text-align:right;}
 .m-time{font-weight:800;font-variant-numeric:tabular-nums;font-size:14.5px;}
 .m-vs{color:var(--muted);font-size:12px;text-align:center;}
+.m-vs.has-result{color:var(--navy-800);font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;}
 .m-p{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
 .m-p mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 2px;}
 .badge{
@@ -271,6 +272,7 @@ body{
   width:100%;border:1px solid var(--blue-2);border-radius:8px;padding:6px 8px;font-size:13.5px;font-family:inherit;
   background:#f2f6ff;color:var(--ink);
 }
+.match-row input.result-input{text-align:center;font-weight:800;font-variant-numeric:tabular-nums;}
 .match-row input.time-input{width:70px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;}
 .row-actions{display:flex;gap:6px;}
 .row-actions button{
@@ -325,6 +327,11 @@ body{
 }
 .score-table td{padding:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;}
 .score-table tr:last-child td{border-bottom:none;}
+.score-table tr.clasif-top td{background:#eaf6ef;}
+.score-table td, .score-table th{white-space:nowrap;}
+.score-table td:nth-child(2){white-space:normal;font-weight:700;}
+.clasif-status{padding:10px 16px 0;font-size:12.5px;}
+.clasif-scroll{overflow-x:auto;}
 .rule-closing{
   background:linear-gradient(180deg,var(--navy-800),var(--navy-900));color:#fff;
   border-radius:14px;padding:18px 20px;font-size:14px;line-height:1.6;text-align:center;
@@ -398,6 +405,7 @@ body{
       <button class="tab" data-tab="todos" role="tab">Todos</button>
       <button class="tab" data-tab="grupos" role="tab">Grupos</button>
       <button class="tab" data-tab="reglas" role="tab">Reglas</button>
+      <button class="tab" data-tab="clasificacion" role="tab">Clasificación</button>
     </div>
     <div class="role-area">
       <span class="role-chip" id="roleChip"><span class="dot"></span><span id="roleLabel">Visor</span></span>
@@ -424,6 +432,7 @@ body{
 <div class="section" id="matchSection"></div>
 <div class="section groups-grid" id="groupsSection" style="display:none;"></div>
 <div class="section" id="reglasSection" style="display:none;"></div>
+<div class="section" id="clasifSection" style="display:none;"></div>
 
 <div class="wrap"></div>
 
@@ -674,10 +683,10 @@ const RAW = {
 
 function buildInitialMatches(){
   const out = [];
-  RAW.viernes.matches.forEach(r => out.push({id:"viernes-"+r[0], day:"viernes", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:null}));
-  RAW.sabado.matches.forEach(r => out.push({id:"sabado-"+r[0], day:"sabado", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:null}));
-  RAW.domingoLiguilla.matches.forEach(r => out.push({id:"domingo-lig-"+r[0], day:"domingo", block:"liguilla", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:null}));
-  RAW.domingoElim.matches.forEach(r => out.push({id:"domingo-elim-"+r[0], day:"domingo", block:"eliminatorias", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:r[5]}));
+  RAW.viernes.matches.forEach(r => out.push({id:"viernes-"+r[0], day:"viernes", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:null, resultado:null}));
+  RAW.sabado.matches.forEach(r => out.push({id:"sabado-"+r[0], day:"sabado", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:null, resultado:null}));
+  RAW.domingoLiguilla.matches.forEach(r => out.push({id:"domingo-lig-"+r[0], day:"domingo", block:"liguilla", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:null, resultado:null}));
+  RAW.domingoElim.matches.forEach(r => out.push({id:"domingo-elim-"+r[0], day:"domingo", block:"eliminatorias", n:r[0], hora:r[1], grupo:r[2], p1:r[3], p2:r[4], ref:r[5], resultado:null}));
   return out;
 }
 
@@ -711,14 +720,14 @@ if(firebaseConfigured && window.firebase){
 
 function matchesToRecord(list){
   const out = {};
-  list.forEach(m => { out[m.id] = {hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref: m.ref || null}; });
+  list.forEach(m => { out[m.id] = {hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref: m.ref || null, resultado: m.resultado || null}; });
   return out;
 }
 
 function applyRemoteRecord(record){
   state.matches = ORIGINAL.map(o => {
     const r = record && record[o.id];
-    return r ? {...o, hora:r.hora, grupo:r.grupo, p1:r.p1, p2:r.p2, ref: r.ref === undefined ? null : r.ref} : {...o};
+    return r ? {...o, hora:r.hora, grupo:r.grupo, p1:r.p1, p2:r.p2, ref: r.ref === undefined ? null : r.ref, resultado: r.resultado === undefined ? null : r.resultado} : {...o};
   });
 }
 
@@ -762,7 +771,7 @@ function initSync(){
 /* Writes a single match's content to the shared source so every open tab updates live. */
 function writeMatch(m){
   if(firebaseReady){
-    dbRef.child(m.id).set({hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref: m.ref || null})
+    dbRef.child(m.id).set({hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref: m.ref || null, resultado: m.resultado || null})
       .catch(e => toast("No se pudo sincronizar con la nube: " + e.message));
   } else {
     persistLocal();
@@ -783,10 +792,115 @@ function resetAllShared(){
 
 function matchMap(){ return Object.fromEntries(state.matches.map(m => [m.id, m])); }
 
+/* ---------- CLASIFICACIÓN (desempates: enfrentamientos directos > diferencial global > PF global) ---------- */
+function parseResultado(str){
+  if(!str) return null;
+  const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(str);
+  if(!m) return null;
+  return {a: parseInt(m[1],10), b: parseInt(m[2],10)};
+}
+
+function groupStageMatches(grupo){
+  return state.matches.filter(m => m.grupo === grupo && m.block !== "eliminatorias");
+}
+
+function isGroupComplete(grupo){
+  const all = groupStageMatches(grupo);
+  return all.length > 0 && all.every(m => parseResultado(m.resultado));
+}
+
+function computeStandings(grupo){
+  const names = GROUPS[grupo] || [];
+  const matches = groupStageMatches(grupo);
+  const stats = {};
+  names.forEach(n => { stats[n] = {pareja:n, pj:0, g:0, p:0, pf:0, pc:0}; });
+  matches.forEach(m => {
+    const parsed = parseResultado(m.resultado);
+    if(!parsed) return;
+    const r1 = stats[m.p1], r2 = stats[m.p2];
+    if(!r1 || !r2) return;
+    r1.pj++; r2.pj++;
+    r1.pf += parsed.a; r1.pc += parsed.b;
+    r2.pf += parsed.b; r2.pc += parsed.a;
+    if(parsed.a > parsed.b){ r1.g++; r2.p++; } else { r2.g++; r1.p++; }
+  });
+  const rows = names.map(n => stats[n]);
+  rows.forEach(r => { r.dif = r.pf - r.pc; });
+
+  function headToHeadWins(pareja, subsetNames){
+    let w = 0;
+    matches.forEach(m => {
+      const parsed = parseResultado(m.resultado);
+      if(!parsed || !subsetNames.has(m.p1) || !subsetNames.has(m.p2)) return;
+      if(m.p1 === pareja && parsed.a > parsed.b) w++;
+      if(m.p2 === pareja && parsed.b > parsed.a) w++;
+    });
+    return w;
+  }
+
+  const byWins = {};
+  rows.forEach(r => { (byWins[r.g] = byWins[r.g] || []).push(r); });
+  const ordered = [];
+  Object.keys(byWins).map(Number).sort((a,b) => b - a).forEach(winCount => {
+    const bucket = byWins[winCount];
+    if(bucket.length === 1){ ordered.push(bucket[0]); return; }
+    const subsetNames = new Set(bucket.map(r => r.pareja));
+    const withH2H = bucket.map(r => ({...r, h2h: headToHeadWins(r.pareja, subsetNames)}));
+    withH2H.sort((a,b) => b.h2h - a.h2h || b.dif - a.dif || b.pf - a.pf);
+    ordered.push(...withH2H);
+  });
+  return ordered;
+}
+
+/* ---------- RESOLUCIÓN AUTOMÁTICA DE CRUCES DE ELIMINATORIAS ---------- */
+function tryAutoResolveBracket(){
+  if(state.role !== "editor") return;
+  const elimMatches = state.matches.filter(m => m.block === "eliminatorias");
+  const byRef = Object.fromEntries(elimMatches.map(m => [m.ref, m]));
+  const octavoRe = /^(\d)\.º Grupo ([A-D])$/;
+  const ganadorRe = /^Ganador (O\d+|C\d+|S\d+)$/;
+  let anyChange = false;
+
+  function resolveField(m, field){
+    const orig = ORIGINAL_MAP[m.id];
+    if(m[field] !== orig[field]) return; // ya resuelto o editado a mano: no tocar
+    let newVal = null;
+    const om = octavoRe.exec(orig[field]);
+    if(om){
+      const rank = parseInt(om[1], 10);
+      const grupo = om[2];
+      if(isGroupComplete(grupo)){
+        const row = computeStandings(grupo)[rank - 1];
+        if(row) newVal = row.pareja;
+      }
+    } else {
+      const gm = ganadorRe.exec(orig[field]);
+      if(gm){
+        const refMatch = byRef[gm[1]];
+        if(refMatch){
+          const parsed = parseResultado(refMatch.resultado);
+          if(parsed) newVal = parsed.a > parsed.b ? refMatch.p1 : refMatch.p2;
+        }
+      }
+    }
+    if(newVal && newVal !== m[field]){ m[field] = newVal; anyChange = true; }
+  }
+
+  for(let pass = 0; pass < 4; pass++){
+    elimMatches.forEach(m => { resolveField(m, "p1"); resolveField(m, "p2"); });
+  }
+
+  if(anyChange){
+    elimMatches.forEach(writeMatch);
+    renderMatches();
+    toast("Cruces de eliminatorias actualizados automáticamente.");
+  }
+}
+
 function isChanged(m){
   const o = ORIGINAL_MAP[m.id];
   if(!o) return false;
-  return o.hora !== m.hora || o.p1 !== m.p1 || o.p2 !== m.p2 || o.grupo !== m.grupo || (o.ref||null) !== (m.ref||null);
+  return o.hora !== m.hora || o.p1 !== m.p1 || o.p2 !== m.p2 || o.grupo !== m.grupo || (o.ref||null) !== (m.ref||null) || (o.resultado||null) !== (m.resultado||null);
 }
 
 function pendingChanges(){
@@ -819,7 +933,7 @@ function toast(msg){
 /* ---------- RENDER: tabs / toolbar visibility ---------- */
 function setActiveTab(tab){
   state.activeTab = tab;
-  const isStatic = tab === "grupos" || tab === "reglas";
+  const isStatic = tab === "grupos" || tab === "reglas" || tab === "clasificacion";
   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   document.getElementById("toolrow").style.display = isStatic ? "none" : "flex";
   document.getElementById("dayInfo").parentElement.style.display = isStatic ? "none" : "block";
@@ -827,6 +941,7 @@ function setActiveTab(tab){
   document.getElementById("matchSection").style.display = isStatic ? "none" : "block";
   document.getElementById("groupsSection").style.display = tab === "grupos" ? "grid" : "none";
   document.getElementById("reglasSection").style.display = tab === "reglas" ? "block" : "none";
+  document.getElementById("clasifSection").style.display = tab === "clasificacion" ? "block" : "none";
   renderAll();
 }
 document.getElementById("tabs").addEventListener("click", e => {
@@ -956,6 +1071,13 @@ function handlePointerUp(ev){
   currentDropId = null;
   dragSourceId = null;
   if(!targetId || !sourceId || targetId === sourceId) return;
+  const src = matchMap()[sourceId];
+  const tgt = matchMap()[targetId];
+  if(!src || !tgt) return;
+  const srcLabel = `${dayLabel(src.day, src.block)} ${src.hora} (#${src.n}): ${src.p1} – ${src.p2}`;
+  const tgtLabel = `${dayLabel(tgt.day, tgt.block)} ${tgt.hora} (#${tgt.n}): ${tgt.p1} – ${tgt.p2}`;
+  const ok = confirm(`¿Intercambiar estos dos partidos? Se aplica al instante para todos.\n\n${srcLabel}\n\n${tgtLabel}`);
+  if(!ok) return;
   performSwap(sourceId, targetId);
 }
 
@@ -990,17 +1112,19 @@ function cancelEdit(){
   editingId = null;
   renderMatches();
 }
-function saveEdit(id, hora, p1, p2){
+function saveEdit(id, hora, p1, p2, resultado){
   const m = state.matches.find(x => x.id === id);
   if(!m) return;
   m.hora = hora.trim() || m.hora;
   m.p1 = p1.trim() || m.p1;
   m.p2 = p2.trim() || m.p2;
+  m.resultado = (resultado || "").trim() || null;
   editingId = null;
   renderMatches();
   renderPendingBar();
   writeMatch(m);
   toast(firebaseReady ? "Cambio guardado: ya es visible para todos." : "Cambio guardado en este navegador.");
+  tryAutoResolveBracket();
 }
 
 function matchRowHTML(m){
@@ -1014,10 +1138,10 @@ function matchRowHTML(m){
       <input class="time-input" type="text" id="edit-hora-${m.id}" value="${escapeHtml(m.hora)}">
       <div>${isElim ? `<span class="badge phase">${escapeHtml(m.grupo)}</span>` : `<span class="badge ${m.grupo}">${m.grupo}</span>`}</div>
       <input type="text" id="edit-p1-${m.id}" value="${escapeHtml(m.p1)}">
-      <div class="m-vs">–</div>
+      <input class="result-input" type="text" id="edit-resultado-${m.id}" value="${escapeHtml(m.resultado || "")}" placeholder="0-0">
       <input type="text" id="edit-p2-${m.id}" value="${escapeHtml(m.p2)}">
       <div class="row-actions">
-        <button class="save-btn" title="Guardar" onclick="saveEdit('${m.id}', document.getElementById('edit-hora-${m.id}').value, document.getElementById('edit-p1-${m.id}').value, document.getElementById('edit-p2-${m.id}').value)">✓</button>
+        <button class="save-btn" title="Guardar" onclick="saveEdit('${m.id}', document.getElementById('edit-hora-${m.id}').value, document.getElementById('edit-p1-${m.id}').value, document.getElementById('edit-p2-${m.id}').value, document.getElementById('edit-resultado-${m.id}').value)">✓</button>
         <button class="cancel-btn" title="Cancelar" onclick="cancelEdit()">✕</button>
       </div>
     </div>`;
@@ -1037,7 +1161,7 @@ function matchRowHTML(m){
     <div class="m-time">${escapeHtml(m.hora)}</div>
     <div>${badge}</div>
     <div class="m-p">${highlight(m.p1, q)}</div>
-    <div class="m-vs">–</div>
+    <div class="m-vs${m.resultado ? " has-result" : ""}">${m.resultado ? escapeHtml(m.resultado) : "–"}</div>
     <div class="m-p">${highlight(m.p2, q)}</div>
     ${editBtn}
   </div>`;
@@ -1067,6 +1191,7 @@ function renderMatches(){
   const section = document.getElementById("matchSection");
   if(state.activeTab === "grupos"){ renderGroups(); return; }
   if(state.activeTab === "reglas"){ renderReglas(); return; }
+  if(state.activeTab === "clasificacion"){ renderClasificacion(); return; }
 
   let list = matchesForTab().filter(passesFilters);
   document.getElementById("dayInfo").innerHTML = dayInfoHTML();
@@ -1235,6 +1360,43 @@ function renderReglas(){
   `;
 }
 
+function renderClasificacion(){
+  const section = document.getElementById("clasifSection");
+  section.className = "section groups-grid";
+  const letters = ["A","B","C","D"];
+  section.innerHTML = letters.map(g => {
+    const rows = computeStandings(g);
+    const total = groupStageMatches(g).length;
+    const played = groupStageMatches(g).filter(m => parseResultado(m.resultado)).length;
+    const statusHtml = isGroupComplete(g)
+      ? `<span style="color:var(--green);font-weight:700;">Grupo completo</span>`
+      : `<span style="color:var(--muted);">${played}/${total} partidos con resultado</span>`;
+    return `
+      <div class="group-card">
+        <div class="group-head ${g}">Grupo ${g}</div>
+        <div class="clasif-status">${statusHtml}</div>
+        <div class="clasif-scroll">
+        <table class="score-table" style="margin:8px 16px 14px;width:calc(100% - 32px);">
+          <thead><tr><th>#</th><th>Pareja</th><th>PJ</th><th>G</th><th>P</th><th>PF</th><th>PC</th><th>Dif</th></tr></thead>
+          <tbody>
+            ${rows.map((r,i) => `<tr class="${i < 4 ? "clasif-top" : ""}">
+                <td>${i+1}</td>
+                <td>${escapeHtml(r.pareja)}</td>
+                <td>${r.pj}</td>
+                <td>${r.g}</td>
+                <td>${r.p}</td>
+                <td>${r.pf}</td>
+                <td>${r.pc}</td>
+                <td>${r.dif > 0 ? "+" : ""}${r.dif}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 /* ---------- PENDING BAR / CHANGES MODAL ---------- */
 function renderPendingBar(){
   const changes = pendingChanges();
@@ -1266,6 +1428,7 @@ function buildChangeSummary(){
     if(o.p1 !== m.p1) parts.push(`pareja 1 "${o.p1}" → "${m.p1}"`);
     if(o.p2 !== m.p2) parts.push(`pareja 2 "${o.p2}" → "${m.p2}"`);
     if((o.ref||null) !== (m.ref||null)) parts.push(`referencia ${o.ref||"–"} → ${m.ref||"–"}`);
+    if((o.resultado||null) !== (m.resultado||null)) parts.push(`resultado ${o.resultado||"–"} → ${m.resultado||"–"}`);
     return `${dayLabel(m.day, m.block)} · partido #${m.n}: ${parts.join("; ")}`;
   }).join("\n");
 }
@@ -1284,6 +1447,7 @@ function renderChangesModal(){
       if(o.p1 !== m.p1) rows.push(`<div class="diff">Pareja 1: <span class="old">${escapeHtml(o.p1)}</span> → <span class="new">${escapeHtml(m.p1)}</span></div>`);
       if(o.p2 !== m.p2) rows.push(`<div class="diff">Pareja 2: <span class="old">${escapeHtml(o.p2)}</span> → <span class="new">${escapeHtml(m.p2)}</span></div>`);
       if((o.ref||null) !== (m.ref||null)) rows.push(`<div class="diff">Referencia: <span class="old">${escapeHtml(o.ref||"–")}</span> → <span class="new">${escapeHtml(m.ref||"–")}</span></div>`);
+      if((o.resultado||null) !== (m.resultado||null)) rows.push(`<div class="diff">Resultado: <span class="old">${escapeHtml(o.resultado||"–")}</span> → <span class="new">${escapeHtml(m.resultado||"–")}</span></div>`);
       return `<div class="change-item"><div class="who">${dayLabel(m.day, m.block)} · partido #${m.n}</div>${rows.join("")}</div>`;
     }).join("");
   }
@@ -1311,7 +1475,7 @@ document.getElementById("copySummaryBtn").addEventListener("click", async () => 
 async function exportChanges(){
   const changes = pendingChanges().map(m => {
     const o = ORIGINAL_MAP[m.id];
-    return { day: m.day, block: m.block || null, n: m.n, original: {hora:o.hora, grupo:o.grupo, p1:o.p1, p2:o.p2, ref:o.ref||null}, updated: {hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref:m.ref||null} };
+    return { day: m.day, block: m.block || null, n: m.n, original: {hora:o.hora, grupo:o.grupo, p1:o.p1, p2:o.p2, ref:o.ref||null, resultado:o.resultado||null}, updated: {hora:m.hora, grupo:m.grupo, p1:m.p1, p2:m.p2, ref:m.ref||null, resultado:m.resultado||null} };
   });
   const payload = {
     torneo: "III Verano Frontenis Cortes",
