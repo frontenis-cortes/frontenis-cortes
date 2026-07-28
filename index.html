@@ -423,9 +423,15 @@ body{
 }
 .swap-item:last-child{border-bottom:none;}
 .swap-item:hover{background:#eef4ff;}
+.swap-item.selected{background:#eaf6ef;box-shadow:inset 3px 0 0 var(--green);}
 .swap-item-time{font-size:11.5px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;}
 .swap-item-teams{font-size:13.5px;font-weight:600;color:var(--ink);}
 .swap-item .swap-vs{color:var(--muted);font-weight:400;}
+.swap-confirm-bar{
+  background:#fbf1de;border:1px solid #f0d8a3;border-radius:10px;padding:12px 14px;margin-bottom:14px;
+}
+.swap-confirm-text{font-size:13px;line-height:1.6;color:var(--amber-ink);margin-bottom:10px;}
+.swap-confirm-text b{display:block;}
 .toast{
   position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
   background:var(--navy-900);color:#fff;padding:10px 18px;border-radius:10px;font-size:13.5px;font-weight:600;
@@ -532,6 +538,13 @@ body{
     <p id="swapSourceInfo" class="swap-source-info"></p>
     <input type="text" id="swapSearchInput" placeholder="Buscar por pareja, día u hora…" class="swap-search-input">
     <div id="swapList" class="swap-list"></div>
+    <div id="swapConfirmBar" class="swap-confirm-bar" style="display:none;">
+      <div id="swapConfirmText" class="swap-confirm-text"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="swapConfirmCancel">Cancelar</button>
+        <button class="btn primary" id="swapConfirmOk">Confirmar intercambio</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn ghost" id="swapClose">Cerrar</button>
     </div>
@@ -1088,15 +1101,18 @@ function canSwap(a, b){ return !isElimMatch(a) && !isElimMatch(b); }
 function dayAbbrev(day){ return day === "viernes" ? "V" : day === "sabado" ? "S" : "D"; }
 
 let swapSourceId = null;
+let swapTargetId = null;
 
 function openSwapModal(id){
   if(state.role !== "editor") return;
   swapSourceId = id;
+  swapTargetId = null;
   const src = matchMap()[id];
   if(!src) return;
   document.getElementById("swapSourceInfo").textContent =
     `${dayLabel(src.day, src.block)} · #${src.n} · ${src.hora} — ${src.p1} vs ${src.p2}`;
   document.getElementById("swapSearchInput").value = "";
+  document.getElementById("swapConfirmBar").style.display = "none";
   renderSwapList("");
   document.getElementById("swapOverlay").classList.add("show");
   document.getElementById("swapSearchInput").focus();
@@ -1105,6 +1121,7 @@ function openSwapModal(id){
 function closeSwapModal(){
   document.getElementById("swapOverlay").classList.remove("show");
   swapSourceId = null;
+  swapTargetId = null;
 }
 
 function renderSwapList(query){
@@ -1126,7 +1143,8 @@ function renderSwapList(query){
   candidates.forEach(m => {
     const dKey = dayLabel(m.day, m.block);
     if(dKey !== lastDay){ html += `<div class="swap-day-label">${escapeHtml(dKey)}</div>`; lastDay = dKey; }
-    html += `<button class="swap-item" onclick="confirmSwapFromModal('${m.id}')">
+    const selected = m.id === swapTargetId ? " selected" : "";
+    html += `<button class="swap-item${selected}" data-target="${m.id}" onclick="selectSwapTarget('${m.id}')">
       <span class="swap-item-time">#${m.n} · ${escapeHtml(m.hora)}</span>
       <span class="swap-item-teams">${escapeHtml(m.p1)} <span class="swap-vs">–</span> ${escapeHtml(m.p2)}</span>
     </button>`;
@@ -1134,16 +1152,33 @@ function renderSwapList(query){
   list.innerHTML = html;
 }
 
-function confirmSwapFromModal(targetId){
-  const sourceId = swapSourceId;
-  const src = matchMap()[sourceId];
+/* Paso 1: tocar un partido de la lista lo selecciona y muestra la barra de confirmación.
+   Paso 2: el propio botón "Confirmar intercambio" del modal aplica el cambio. No se usa
+   confirm() nativo del navegador porque en navegadores embebidos (p. ej. el de WhatsApp)
+   puede no mostrarse. */
+function selectSwapTarget(targetId){
+  swapTargetId = targetId;
+  const src = matchMap()[swapSourceId];
   const tgt = matchMap()[targetId];
   if(!src || !tgt) return;
-  const srcLabel = `${dayLabel(src.day, src.block)} ${src.hora} (#${src.n}): ${src.p1} – ${src.p2}`;
-  const tgtLabel = `${dayLabel(tgt.day, tgt.block)} ${tgt.hora} (#${tgt.n}): ${tgt.p1} – ${tgt.p2}`;
-  const ok = confirm(`¿Intercambiar estos dos partidos? Se aplica al instante para todos.\n\n${srcLabel}\n\n${tgtLabel}`);
-  if(!ok) return;
-  performSwap(sourceId, targetId);
+  document.querySelectorAll(".swap-item").forEach(el => {
+    el.classList.toggle("selected", el.dataset.target === targetId);
+  });
+  document.getElementById("swapConfirmText").innerHTML =
+    `<b>${escapeHtml(dayLabel(src.day, src.block))} #${src.n} · ${escapeHtml(src.hora)}:</b> ${escapeHtml(src.p1)} – ${escapeHtml(src.p2)}<br>` +
+    `<b>${escapeHtml(dayLabel(tgt.day, tgt.block))} #${tgt.n} · ${escapeHtml(tgt.hora)}:</b> ${escapeHtml(tgt.p1)} – ${escapeHtml(tgt.p2)}`;
+  document.getElementById("swapConfirmBar").style.display = "block";
+}
+
+function cancelSwapSelection(){
+  swapTargetId = null;
+  document.getElementById("swapConfirmBar").style.display = "none";
+  document.querySelectorAll(".swap-item.selected").forEach(el => el.classList.remove("selected"));
+}
+
+function applySwapSelection(){
+  if(!swapSourceId || !swapTargetId) return;
+  performSwap(swapSourceId, swapTargetId);
   closeSwapModal();
 }
 
@@ -1528,6 +1563,8 @@ document.getElementById("viewChangesBtn").addEventListener("click", () => {
 document.getElementById("changesClose").addEventListener("click", () => document.getElementById("changesOverlay").classList.remove("show"));
 document.getElementById("swapClose").addEventListener("click", closeSwapModal);
 document.getElementById("swapSearchInput").addEventListener("input", e => renderSwapList(e.target.value));
+document.getElementById("swapConfirmCancel").addEventListener("click", cancelSwapSelection);
+document.getElementById("swapConfirmOk").addEventListener("click", applySwapSelection);
 
 document.getElementById("copySummaryBtn").addEventListener("click", async () => {
   const text = document.getElementById("summaryText").value;
