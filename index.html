@@ -1201,7 +1201,7 @@ function renderPairSearchResults(query){
     list.innerHTML = `<div class="empty-state">Sin parejas que coincidan con la búsqueda.</div>`;
     return;
   }
-  list.innerHTML = names.map(n => `<button class="swap-item" onclick="showPairSchedule(${JSON.stringify(n)})">
+  list.innerHTML = names.map(n => `<button class="swap-item" onclick="showPairSchedule(${escapeHtml(JSON.stringify(n))})">
     <span class="swap-item-teams">${escapeHtml(n)}</span>
   </button>`).join("");
 }
