@@ -1296,23 +1296,39 @@ function matchRowHTML(m){
   const q = state.search.toLowerCase();
   const isElim = m.block === "eliminatorias";
   if(editingId === m.id){
+    /* El lápiz solo deja tocar el resultado. Hora y parejas quedan fijas (se cambian con el
+       botón ⇄), salvo en eliminatorias, donde el nombre sigue editable para poder resolver un
+       cruce a mano si hiciera falta. */
+    const horaLiteral = escapeHtml(JSON.stringify(m.hora));
+    let p1Html, p2Html, p1Arg, p2Arg;
+    if(isElim){
+      p1Html = `<input type="text" id="edit-p1-${m.id}" value="${escapeHtml(m.p1)}">`;
+      p2Html = `<input type="text" id="edit-p2-${m.id}" value="${escapeHtml(m.p2)}">`;
+      p1Arg = `document.getElementById('edit-p1-${m.id}').value`;
+      p2Arg = `document.getElementById('edit-p2-${m.id}').value`;
+    } else {
+      p1Html = `<div class="m-p">${escapeHtml(m.p1)}</div>`;
+      p2Html = `<div class="m-p">${escapeHtml(m.p2)}</div>`;
+      p1Arg = escapeHtml(JSON.stringify(m.p1));
+      p2Arg = escapeHtml(JSON.stringify(m.p2));
+    }
     return `<div class="match-row changed" data-id="${m.id}">
       <div class="drag-handle disabled">⇄</div>
       <div class="m-n">${m.n}</div>
-      <input class="time-input" type="text" id="edit-hora-${m.id}" value="${escapeHtml(m.hora)}">
+      <div class="m-time">${escapeHtml(m.hora)}</div>
       <div>${isElim ? `<span class="badge phase">${escapeHtml(m.grupo)}</span>` : `<span class="badge ${m.grupo}">${m.grupo}</span>`}</div>
-      <input type="text" id="edit-p1-${m.id}" value="${escapeHtml(m.p1)}">
-      <input class="result-input" type="text" id="edit-resultado-${m.id}" value="${escapeHtml(m.resultado || "")}" placeholder="0-0">
-      <input type="text" id="edit-p2-${m.id}" value="${escapeHtml(m.p2)}">
+      ${p1Html}
+      <input class="result-input" type="text" id="edit-resultado-${m.id}" value="${escapeHtml(m.resultado || "")}" placeholder="0-0" autofocus>
+      ${p2Html}
       <div class="row-actions">
-        <button class="save-btn" title="Guardar" onclick="saveEdit('${m.id}', document.getElementById('edit-hora-${m.id}').value, document.getElementById('edit-p1-${m.id}').value, document.getElementById('edit-p2-${m.id}').value, document.getElementById('edit-resultado-${m.id}').value)">✓</button>
+        <button class="save-btn" title="Guardar" onclick="saveEdit('${m.id}', ${horaLiteral}, ${p1Arg}, ${p2Arg}, document.getElementById('edit-resultado-${m.id}').value)">✓</button>
         <button class="cancel-btn" title="Cancelar" onclick="cancelEdit()">✕</button>
       </div>
     </div>`;
   }
   const isEditor = state.role === "editor";
   const editBtn = isEditor
-    ? `<button class="edit-btn" title="Editar partido" onclick="startEdit('${m.id}')">✎</button>`
+    ? `<button class="edit-btn" title="${isElim ? "Editar cruce o resultado" : "Editar resultado"}" onclick="startEdit('${m.id}')">✎</button>`
     : `<span></span>`;
   const badge = isElim ? `<span class="badge phase">${escapeHtml(m.grupo)}${m.ref ? " · "+escapeHtml(m.ref) : ""}</span>` : `<span class="badge ${m.grupo}">${m.grupo}</span>`;
   const dragHandle = isEditor
