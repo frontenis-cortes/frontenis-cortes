@@ -1235,8 +1235,17 @@ function renderPairResults(query){
     matches.forEach(m => {
       const dKey = dayLabel(m.day, m.block);
       if(dKey !== lastDay){ html += `<div class="swap-day-label">${escapeHtml(dKey)}</div>`; lastDay = dKey; }
-      const rival = m.p1 === pareja ? m.p2 : m.p1;
-      const res = m.resultado ? ` · <b>${escapeHtml(m.resultado)}</b>` : "";
+      const isP1 = m.p1 === pareja;
+      const rival = isP1 ? m.p2 : m.p1;
+      const parsed = parseResultado(m.resultado);
+      let res = "";
+      if(parsed){
+        const myScore = isP1 ? parsed.a : parsed.b;
+        const rivalScore = isP1 ? parsed.b : parsed.a;
+        res = ` · <b>${myScore}-${rivalScore}</b>`;
+      } else if(m.resultado){
+        res = ` · <b>${escapeHtml(m.resultado)}</b>`;
+      }
       html += `<div class="swap-item" style="cursor:default;">
         <span class="swap-item-time">#${m.n} · ${escapeHtml(m.hora)}</span>
         <span class="swap-item-teams">vs ${escapeHtml(rival)}${res}</span>
