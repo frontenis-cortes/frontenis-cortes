@@ -193,11 +193,14 @@ body{
 .chip{
   border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted);
 }
-.pair-schedule-btn{
-  border:1px solid var(--blue-2);background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;
-  cursor:pointer;color:var(--blue);font-family:inherit;
+.pair-lookup-search{max-width:420px;margin-bottom:16px;}
+.pair-lookup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media (max-width:720px){.pair-lookup-grid{grid-template-columns:1fr;}}
+.pair-lookup-label{
+  font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  margin-bottom:8px;
 }
-.pair-schedule-btn:hover{background:#eef4ff;}
+.pair-lookup-list{max-height:520px;}
 .chip[aria-pressed="true"]{color:#fff;border-color:transparent;}
 .chip[data-g="A"][aria-pressed="true"]{background:var(--A);}
 .chip[data-g="B"][aria-pressed="true"]{background:var(--B);}
@@ -449,6 +452,7 @@ body{
       <button class="tab" data-tab="todos" role="tab">Todos</button>
       <button class="tab" data-tab="grupos" role="tab">Grupos</button>
       <button class="tab" data-tab="clasificacion" role="tab">Clasificación</button>
+      <button class="tab" data-tab="pareja" role="tab">Partidos por pareja</button>
       <button class="tab" data-tab="reglas" role="tab">Reglas</button>
     </div>
     <div class="role-area">
@@ -467,7 +471,6 @@ body{
   <button class="chip" data-g="B" aria-pressed="false">Grupo B</button>
   <button class="chip" data-g="C" aria-pressed="false">Grupo C</button>
   <button class="chip" data-g="D" aria-pressed="false">Grupo D</button>
-  <button class="pair-schedule-btn" id="pairScheduleBtn">📋 Partidos por pareja</button>
 </div>
 
 <div class="day-info"><div class="info-card" id="dayInfo"></div></div>
@@ -477,6 +480,19 @@ body{
 <div class="section groups-grid" id="groupsSection" style="display:none;"></div>
 <div class="section" id="reglasSection" style="display:none;"></div>
 <div class="section" id="clasifSection" style="display:none;"></div>
+<div class="section" id="pairSection" style="display:none;">
+  <input type="text" id="pairSearchInput" placeholder="Buscar pareja o jugador…" class="swap-search-input pair-lookup-search">
+  <div class="pair-lookup-grid">
+    <div>
+      <div class="pair-lookup-label">Parejas</div>
+      <div id="pairSearchResults" class="swap-list pair-lookup-list"></div>
+    </div>
+    <div>
+      <div class="pair-lookup-label">Partidos</div>
+      <div id="pairScheduleList" class="swap-list pair-lookup-list"><div class="empty-state">Elige una pareja de la lista para ver sus partidos.</div></div>
+    </div>
+  </div>
+</div>
 
 <div class="wrap"></div>
 
@@ -514,18 +530,6 @@ body{
     </div>
     <div class="modal-actions">
       <button class="btn ghost" id="swapClose">Cerrar</button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="pairScheduleOverlay">
-  <div class="modal" style="max-width:480px;">
-    <h3>Partidos de una pareja</h3>
-    <input type="text" id="pairSearchInput" placeholder="Buscar pareja o jugador…" class="swap-search-input">
-    <div id="pairSearchResults" class="swap-list"></div>
-    <div id="pairScheduleList"></div>
-    <div class="modal-actions">
-      <button class="btn ghost" id="pairScheduleClose">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1009,7 +1013,7 @@ function toast(msg){
 /* ---------- RENDER: tabs / toolbar visibility ---------- */
 function setActiveTab(tab){
   state.activeTab = tab;
-  const isStatic = tab === "grupos" || tab === "reglas" || tab === "clasificacion";
+  const isStatic = tab === "grupos" || tab === "reglas" || tab === "clasificacion" || tab === "pareja";
   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   document.getElementById("toolrow").style.display = isStatic ? "none" : "flex";
   document.getElementById("dayInfo").parentElement.style.display = isStatic ? "none" : "block";
@@ -1018,6 +1022,8 @@ function setActiveTab(tab){
   document.getElementById("groupsSection").style.display = tab === "grupos" ? "grid" : "none";
   document.getElementById("reglasSection").style.display = tab === "reglas" ? "block" : "none";
   document.getElementById("clasifSection").style.display = tab === "clasificacion" ? "block" : "none";
+  document.getElementById("pairSection").style.display = tab === "pareja" ? "block" : "none";
+  if(tab === "pareja") resetPairLookup();
   renderAll();
 }
 document.getElementById("tabs").addEventListener("click", e => {
@@ -1189,16 +1195,10 @@ function allParejas(){
   return Object.values(GROUPS).flat();
 }
 
-function openPairScheduleModal(){
+function resetPairLookup(){
   document.getElementById("pairSearchInput").value = "";
   renderPairSearchResults("");
-  document.getElementById("pairScheduleList").innerHTML = "";
-  document.getElementById("pairScheduleOverlay").classList.add("show");
-  document.getElementById("pairSearchInput").focus();
-}
-
-function closePairScheduleModal(){
-  document.getElementById("pairScheduleOverlay").classList.remove("show");
+  document.getElementById("pairScheduleList").innerHTML = `<div class="empty-state">Elige una pareja de la lista para ver sus partidos.</div>`;
 }
 
 function renderPairSearchResults(query){
@@ -1234,7 +1234,7 @@ function showPairSchedule(pareja){
     </div>`;
   });
   box.innerHTML = html + `<div style="height:2px;"></div>`;
-  box.className = "swap-list";
+  box.className = "swap-list pair-lookup-list";
 }
 
 function performSwap(sourceId, targetId){
@@ -1350,6 +1350,7 @@ function renderMatches(){
   if(state.activeTab === "grupos"){ renderGroups(); return; }
   if(state.activeTab === "reglas"){ renderReglas(); return; }
   if(state.activeTab === "clasificacion"){ renderClasificacion(); return; }
+  if(state.activeTab === "pareja"){ return; }
 
   let list = matchesForTab().filter(passesFilters);
   document.getElementById("dayInfo").innerHTML = dayInfoHTML();
@@ -1565,8 +1566,6 @@ document.getElementById("swapClose").addEventListener("click", closeSwapModal);
 document.getElementById("swapSearchInput").addEventListener("input", e => renderSwapList(e.target.value));
 document.getElementById("swapConfirmCancel").addEventListener("click", cancelSwapSelection);
 document.getElementById("swapConfirmOk").addEventListener("click", applySwapSelection);
-document.getElementById("pairScheduleBtn").addEventListener("click", openPairScheduleModal);
-document.getElementById("pairScheduleClose").addEventListener("click", closePairScheduleModal);
 document.getElementById("pairSearchInput").addEventListener("input", e => renderPairSearchResults(e.target.value));
 
 function renderAll(){
