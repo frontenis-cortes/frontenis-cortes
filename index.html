@@ -194,13 +194,10 @@ body{
   border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted);
 }
 .pair-lookup-search{max-width:420px;margin-bottom:16px;}
-.pair-lookup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-@media (max-width:720px){.pair-lookup-grid{grid-template-columns:1fr;}}
-.pair-lookup-label{
-  font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
-  margin-bottom:8px;
-}
-.pair-lookup-list{max-height:520px;}
+#pairScheduleList{max-height:none;border:none;overflow:visible;}
+#pairScheduleList .swap-day-label{position:static;border-radius:8px;margin-top:14px;}
+.pair-result-block{margin-bottom:20px;}
+.pair-result-block:last-child{margin-bottom:0;}
 .chip[aria-pressed="true"]{color:#fff;border-color:transparent;}
 .chip[data-g="A"][aria-pressed="true"]{background:var(--A);}
 .chip[data-g="B"][aria-pressed="true"]{background:var(--B);}
@@ -482,16 +479,7 @@ body{
 <div class="section" id="clasifSection" style="display:none;"></div>
 <div class="section" id="pairSection" style="display:none;">
   <input type="text" id="pairSearchInput" placeholder="Buscar pareja o jugador…" class="swap-search-input pair-lookup-search">
-  <div class="pair-lookup-grid">
-    <div>
-      <div class="pair-lookup-label">Parejas</div>
-      <div id="pairSearchResults" class="swap-list pair-lookup-list"></div>
-    </div>
-    <div>
-      <div class="pair-lookup-label">Partidos</div>
-      <div id="pairScheduleList" class="swap-list pair-lookup-list"><div class="empty-state">Elige una pareja de la lista para ver sus partidos.</div></div>
-    </div>
-  </div>
+  <div id="pairScheduleList"><div class="empty-state">Escribe el nombre de una pareja o jugador para ver sus partidos.</div></div>
 </div>
 
 <div class="wrap"></div>
@@ -1197,44 +1185,40 @@ function allParejas(){
 
 function resetPairLookup(){
   document.getElementById("pairSearchInput").value = "";
-  renderPairSearchResults("");
-  document.getElementById("pairScheduleList").innerHTML = `<div class="empty-state">Elige una pareja de la lista para ver sus partidos.</div>`;
+  renderPairResults("");
 }
 
-function renderPairSearchResults(query){
-  const q = query.trim().toLowerCase();
-  const list = document.getElementById("pairSearchResults");
-  const names = allParejas().filter(n => !q || n.toLowerCase().includes(q));
-  if(names.length === 0){
-    list.innerHTML = `<div class="empty-state">Sin parejas que coincidan con la búsqueda.</div>`;
-    return;
-  }
-  list.innerHTML = names.map(n => `<button class="swap-item" onclick="showPairSchedule(${escapeHtml(JSON.stringify(n))})">
-    <span class="swap-item-teams">${escapeHtml(n)}</span>
-  </button>`).join("");
-}
-
-function showPairSchedule(pareja){
-  const matches = state.matches.filter(m => m.p1 === pareja || m.p2 === pareja);
+function renderPairResults(query){
   const box = document.getElementById("pairScheduleList");
-  if(matches.length === 0){
-    box.innerHTML = `<div class="empty-state">No se han encontrado partidos para ${escapeHtml(pareja)}.</div>`;
+  const q = query.trim().toLowerCase();
+  if(!q){
+    box.innerHTML = `<div class="empty-state">Escribe el nombre de una pareja o jugador para ver sus partidos.</div>`;
     return;
   }
-  let lastDay = null;
-  let html = `<div class="swap-source-info">${escapeHtml(pareja)} — ${matches.length} partido${matches.length === 1 ? "" : "s"}</div>`;
-  matches.forEach(m => {
-    const dKey = dayLabel(m.day, m.block);
-    if(dKey !== lastDay){ html += `<div class="swap-day-label">${escapeHtml(dKey)}</div>`; lastDay = dKey; }
-    const rival = m.p1 === pareja ? m.p2 : m.p1;
-    const res = m.resultado ? ` · <b>${escapeHtml(m.resultado)}</b>` : "";
-    html += `<div class="swap-item" style="cursor:default;">
-      <span class="swap-item-time">#${m.n} · ${escapeHtml(m.hora)}</span>
-      <span class="swap-item-teams">vs ${escapeHtml(rival)}${res}</span>
-    </div>`;
+  const names = allParejas().filter(n => n.toLowerCase().includes(q));
+  if(names.length === 0){
+    box.innerHTML = `<div class="empty-state">Sin parejas que coincidan con "${escapeHtml(query)}".</div>`;
+    return;
+  }
+  let html = "";
+  names.forEach(pareja => {
+    const matches = state.matches.filter(m => m.p1 === pareja || m.p2 === pareja);
+    html += `<div class="pair-result-block">`;
+    html += `<div class="swap-source-info">${escapeHtml(pareja)} — ${matches.length} partido${matches.length === 1 ? "" : "s"}</div>`;
+    let lastDay = null;
+    matches.forEach(m => {
+      const dKey = dayLabel(m.day, m.block);
+      if(dKey !== lastDay){ html += `<div class="swap-day-label">${escapeHtml(dKey)}</div>`; lastDay = dKey; }
+      const rival = m.p1 === pareja ? m.p2 : m.p1;
+      const res = m.resultado ? ` · <b>${escapeHtml(m.resultado)}</b>` : "";
+      html += `<div class="swap-item" style="cursor:default;">
+        <span class="swap-item-time">#${m.n} · ${escapeHtml(m.hora)}</span>
+        <span class="swap-item-teams">vs ${escapeHtml(rival)}${res}</span>
+      </div>`;
+    });
+    html += `</div>`;
   });
-  box.innerHTML = html + `<div style="height:2px;"></div>`;
-  box.className = "swap-list pair-lookup-list";
+  box.innerHTML = html;
 }
 
 function performSwap(sourceId, targetId){
@@ -1566,7 +1550,7 @@ document.getElementById("swapClose").addEventListener("click", closeSwapModal);
 document.getElementById("swapSearchInput").addEventListener("input", e => renderSwapList(e.target.value));
 document.getElementById("swapConfirmCancel").addEventListener("click", cancelSwapSelection);
 document.getElementById("swapConfirmOk").addEventListener("click", applySwapSelection);
-document.getElementById("pairSearchInput").addEventListener("input", e => renderPairSearchResults(e.target.value));
+document.getElementById("pairSearchInput").addEventListener("input", e => renderPairResults(e.target.value));
 
 function renderAll(){
   renderMatches();
