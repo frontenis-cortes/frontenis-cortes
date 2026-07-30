@@ -1248,7 +1248,7 @@ function renderPairResults(query){
       }
       html += `<div class="swap-item" style="cursor:default;">
         <span class="swap-item-time">#${m.n} · ${escapeHtml(m.hora)}</span>
-        <span class="swap-item-teams">vs ${escapeHtml(rival)}${res}</span>
+        <span class="swap-item-teams">${escapeHtml(pareja)} <span class="swap-vs">vs</span> ${escapeHtml(rival)}${res}</span>
       </div>`;
     });
     html += `</div>`;
