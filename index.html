@@ -560,6 +560,7 @@ body{
 <script>
 const EDITOR_CODE = "JORGE2026";
 const STORAGE_KEY = "frontenis_cortes_state_v1";
+const VISIT_FLAG_KEY = "frontenis_cortes_visited_v1";
 
 const GROUPS = {
   A: ["César Miñes / Fernando Miñes","Raúl Pérez / Valeri Kirilov","Iosu Llorca / Víctor Marqués","Unai Rupérez / Imanol Rupérez","Pedro Pardillo / David Chaparro","Óscar / Julen Maeztu","Alfredo / Andrés Continente","Barquero / Hugo García"],
@@ -822,7 +823,14 @@ function initSync(){
     applyRemoteRecord(snap.val());
     renderAll();
   });
-  visitsRef.transaction(current => (current || 0) + 1);
+  /* Solo suma una vez por navegador/dispositivo (no en cada recarga), para que el contador se
+     acerque a "visitas reales" en vez de "cargas de página". */
+  let alreadyVisited = false;
+  try{ alreadyVisited = localStorage.getItem(VISIT_FLAG_KEY) === "1"; }catch(e){ /* almacenamiento no disponible */ }
+  if(!alreadyVisited){
+    visitsRef.transaction(current => (current || 0) + 1);
+    try{ localStorage.setItem(VISIT_FLAG_KEY, "1"); }catch(e){ /* almacenamiento no disponible */ }
+  }
   visitsRef.on("value", snap => {
     const el = document.getElementById("visitCount");
     if(el) el.textContent = snap.val() || 0;
