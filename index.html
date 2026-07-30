@@ -234,7 +234,7 @@ body{
 .day-divider:first-child{margin-top:4px;}
 .match-row{
   display:grid;
-  grid-template-columns:20px 34px 62px 34px 1fr 60px 1fr 34px;
+  grid-template-columns:20px 34px 62px 34px 1fr 60px 1fr 96px;
   align-items:center;gap:10px;
   background:var(--card);
   border:1px solid var(--line);
@@ -315,6 +315,7 @@ body{
 }
 .save-btn{background:var(--green);}
 .cancel-btn{background:var(--red);}
+.clear-btn{background:var(--muted);font-size:14px;}
 
 .marker-row{
   text-align:center;font-weight:800;letter-spacing:.03em;font-size:12.5px;
@@ -1300,6 +1301,18 @@ function saveEdit(id, hora, p1, p2, resultado){
   tryAutoResolveBracket();
 }
 
+/* Borra el resultado (deja el partido como si nadie lo hubiera tocado). Distinto de "Cancelar",
+   que solo descarta lo que se estaba escribiendo sin llegar a guardar nada. */
+function clearResult(id){
+  const m = state.matches.find(x => x.id === id);
+  if(!m) return;
+  m.resultado = null;
+  editingId = null;
+  renderMatches();
+  writeMatch(m);
+  toast(firebaseReady ? "Resultado borrado: ya es visible para todos." : "Resultado borrado en este navegador.");
+}
+
 function matchRowHTML(m){
   const changed = isChanged(m);
   const q = state.search.toLowerCase();
@@ -1331,6 +1344,7 @@ function matchRowHTML(m){
       ${p2Html}
       <div class="row-actions">
         <button class="save-btn" title="Guardar" onclick="saveEdit('${m.id}', ${horaLiteral}, ${p1Arg}, ${p2Arg}, document.getElementById('edit-resultado-${m.id}').value)">✓</button>
+        <button class="clear-btn" title="Borrar resultado" onclick="clearResult('${m.id}')">↺</button>
         <button class="cancel-btn" title="Cancelar" onclick="cancelEdit()">✕</button>
       </div>
     </div>`;
