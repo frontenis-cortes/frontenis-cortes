@@ -166,6 +166,7 @@ body{
   font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;cursor:pointer;
 }
 .footer-editor-btn:hover{border-color:var(--blue-2);color:var(--blue);}
+.visit-counter{margin-top:10px;font-size:12px;color:var(--muted);}
 .role-chip.editor{background:#fbf1de;border-color:#f0d8a3;color:var(--amber-ink);}
 .role-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
 .role-chip.editor .dot{background:var(--amber);}
@@ -192,6 +193,11 @@ body{
 .chip{
   border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;cursor:pointer;color:var(--muted);
 }
+.pair-schedule-btn{
+  border:1px solid var(--blue-2);background:#fff;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;
+  cursor:pointer;color:var(--blue);font-family:inherit;
+}
+.pair-schedule-btn:hover{background:#eef4ff;}
 .chip[aria-pressed="true"]{color:#fff;border-color:transparent;}
 .chip[data-g="A"][aria-pressed="true"]{background:var(--A);}
 .chip[data-g="B"][aria-pressed="true"]{background:var(--B);}
@@ -280,6 +286,11 @@ body{
 .m-vs.has-result{color:var(--navy-800);font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;}
 .m-p{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
 .m-p mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 2px;}
+.play-count{
+  display:inline-block;font-size:11px;font-weight:800;color:var(--navy-700);
+  background:#eef1fb;border-radius:999px;padding:1px 7px;margin-left:4px;
+  font-variant-numeric:tabular-nums;vertical-align:middle;
+}
 .badge{
   display:inline-flex;align-items:center;justify-content:center;
   width:26px;height:26px;border-radius:8px;color:#fff;font-weight:800;font-size:12.5px;
@@ -456,6 +467,7 @@ body{
   <button class="chip" data-g="B" aria-pressed="false">Grupo B</button>
   <button class="chip" data-g="C" aria-pressed="false">Grupo C</button>
   <button class="chip" data-g="D" aria-pressed="false">Grupo D</button>
+  <button class="pair-schedule-btn" id="pairScheduleBtn">📋 Partidos por pareja</button>
 </div>
 
 <div class="day-info"><div class="info-card" id="dayInfo"></div></div>
@@ -470,6 +482,7 @@ body{
 
 <div class="page-footer">
   <button class="footer-editor-btn" id="roleBtn">Modo organizador</button>
+  <div class="visit-counter" id="visitCounter" style="display:none;">👁 <span id="visitCount">0</span> visitas</div>
 </div>
 
 <div class="overlay" id="pinOverlay">
@@ -501,6 +514,18 @@ body{
     </div>
     <div class="modal-actions">
       <button class="btn ghost" id="swapClose">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pairScheduleOverlay">
+  <div class="modal" style="max-width:480px;">
+    <h3>Partidos de una pareja</h3>
+    <input type="text" id="pairSearchInput" placeholder="Buscar pareja o jugador…" class="swap-search-input">
+    <div id="pairSearchResults" class="swap-list"></div>
+    <div id="pairScheduleList"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="pairScheduleClose">Cerrar</button>
     </div>
   </div>
 </div>
@@ -740,11 +765,13 @@ let state = {
 const firebaseConfigured = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && !window.FIREBASE_CONFIG.apiKey.startsWith("REEMPLAZA"));
 let firebaseReady = false;
 let dbRef = null;
+let visitsRef = null;
 
 if(firebaseConfigured && window.firebase){
   try{
     firebase.initializeApp(window.FIREBASE_CONFIG);
     dbRef = firebase.database().ref("frontenisCortes/matches");
+    visitsRef = firebase.database().ref("frontenisCortes/stats/visits");
     firebaseReady = true;
   }catch(e){ console.error("Firebase no se pudo inicializar, usando almacenamiento local del navegador.", e); }
 }
@@ -795,6 +822,11 @@ function initSync(){
     applyRemoteRecord(snap.val());
     renderAll();
   });
+  visitsRef.transaction(current => (current || 0) + 1);
+  visitsRef.on("value", snap => {
+    const el = document.getElementById("visitCount");
+    if(el) el.textContent = snap.val() || 0;
+  });
   updateRoleUI();
   setActiveTab("viernes");
 }
@@ -810,6 +842,27 @@ function writeMatch(m){
 }
 
 function matchMap(){ return Object.fromEntries(state.matches.map(m => [m.id, m])); }
+
+/* Para cada partido de liguilla, calcula qué número de partido es (en el orden actual del
+   calendario) para cada una de las dos parejas, sobre su total de partidos de liguilla.
+   Se recalcula en cada render porque el orden puede cambiar al intercambiar horarios. */
+let playIndexCache = null;
+function computePlaySeq(){
+  const nonElim = state.matches.filter(m => m.block !== "eliminatorias");
+  const totals = {};
+  nonElim.forEach(m => {
+    totals[m.p1] = (totals[m.p1] || 0) + 1;
+    totals[m.p2] = (totals[m.p2] || 0) + 1;
+  });
+  const running = {};
+  const seqMap = {};
+  nonElim.forEach(m => {
+    running[m.p1] = (running[m.p1] || 0) + 1;
+    running[m.p2] = (running[m.p2] || 0) + 1;
+    seqMap[m.id] = { p1: `${running[m.p1]}/${totals[m.p1]}`, p2: `${running[m.p2]}/${totals[m.p2]}` };
+  });
+  return seqMap;
+}
 
 /* ---------- CLASIFICACIÓN (desempates: enfrentamientos directos > diferencial global > PF global) ---------- */
 function parseResultado(str){
@@ -991,16 +1044,19 @@ function updateRoleUI(){
   const label = document.getElementById("roleLabel");
   const btn = document.getElementById("roleBtn");
   const hint = document.getElementById("editorHint");
+  const visits = document.getElementById("visitCounter");
   if(state.role === "editor"){
     chip.classList.add("editor", "show");
     label.textContent = "Editor";
     btn.textContent = "Salir del modo editor";
     hint.classList.add("show");
+    visits.style.display = firebaseReady ? "block" : "none";
   } else {
     chip.classList.remove("editor", "show");
     label.textContent = "Visor";
     btn.textContent = "Modo organizador";
     hint.classList.remove("show");
+    visits.style.display = "none";
   }
   renderMatches();
 }
@@ -1120,6 +1176,59 @@ function applySwapSelection(){
   closeSwapModal();
 }
 
+/* ---------- PARTIDOS DE UNA PAREJA (consulta, para cualquiera) ---------- */
+function allParejas(){
+  return Object.values(GROUPS).flat();
+}
+
+function openPairScheduleModal(){
+  document.getElementById("pairSearchInput").value = "";
+  renderPairSearchResults("");
+  document.getElementById("pairScheduleList").innerHTML = "";
+  document.getElementById("pairScheduleOverlay").classList.add("show");
+  document.getElementById("pairSearchInput").focus();
+}
+
+function closePairScheduleModal(){
+  document.getElementById("pairScheduleOverlay").classList.remove("show");
+}
+
+function renderPairSearchResults(query){
+  const q = query.trim().toLowerCase();
+  const list = document.getElementById("pairSearchResults");
+  const names = allParejas().filter(n => !q || n.toLowerCase().includes(q));
+  if(names.length === 0){
+    list.innerHTML = `<div class="empty-state">Sin parejas que coincidan con la búsqueda.</div>`;
+    return;
+  }
+  list.innerHTML = names.map(n => `<button class="swap-item" onclick="showPairSchedule(${JSON.stringify(n)})">
+    <span class="swap-item-teams">${escapeHtml(n)}</span>
+  </button>`).join("");
+}
+
+function showPairSchedule(pareja){
+  const matches = state.matches.filter(m => m.p1 === pareja || m.p2 === pareja);
+  const box = document.getElementById("pairScheduleList");
+  if(matches.length === 0){
+    box.innerHTML = `<div class="empty-state">No se han encontrado partidos para ${escapeHtml(pareja)}.</div>`;
+    return;
+  }
+  let lastDay = null;
+  let html = `<div class="swap-source-info">${escapeHtml(pareja)} — ${matches.length} partido${matches.length === 1 ? "" : "s"}</div>`;
+  matches.forEach(m => {
+    const dKey = dayLabel(m.day, m.block);
+    if(dKey !== lastDay){ html += `<div class="swap-day-label">${escapeHtml(dKey)}</div>`; lastDay = dKey; }
+    const rival = m.p1 === pareja ? m.p2 : m.p1;
+    const res = m.resultado ? ` · <b>${escapeHtml(m.resultado)}</b>` : "";
+    html += `<div class="swap-item" style="cursor:default;">
+      <span class="swap-item-time">#${m.n} · ${escapeHtml(m.hora)}</span>
+      <span class="swap-item-teams">vs ${escapeHtml(rival)}${res}</span>
+    </div>`;
+  });
+  box.innerHTML = html + `<div style="height:2px;"></div>`;
+  box.className = "swap-list";
+}
+
 function performSwap(sourceId, targetId){
   const src = state.matches.find(m => m.id === sourceId);
   const tgt = state.matches.find(m => m.id === targetId);
@@ -1193,14 +1302,17 @@ function matchRowHTML(m){
     : `<div class="drag-handle disabled">⇄</div>`;
   const nLabel = state.activeTab === "todos" ? `${dayAbbrev(m.day)}${m.n}` : m.n;
   const showChanged = changed && isEditor;
+  const playSeq = (isEditor && playIndexCache) ? playIndexCache[m.id] : null;
+  const p1Count = playSeq ? ` <span class="play-count">${playSeq.p1}</span>` : "";
+  const p2Count = playSeq ? ` <span class="play-count">${playSeq.p2}</span>` : "";
   return `<div class="match-row${showChanged ? " changed" : ""}" data-id="${m.id}">
     ${dragHandle}
     <div class="m-n">${nLabel}</div>
     <div class="m-time">${escapeHtml(m.hora)}</div>
     <div>${badge}</div>
-    <div class="m-p">${highlight(m.p1, q)}</div>
+    <div class="m-p">${highlight(m.p1, q)}${p1Count}</div>
     <div class="m-vs${m.resultado ? " has-result" : ""}">${m.resultado ? escapeHtml(m.resultado) : "–"}</div>
-    <div class="m-p">${highlight(m.p2, q)}</div>
+    <div class="m-p">${highlight(m.p2, q)}${p2Count}</div>
     ${editBtn}
   </div>`;
 }
@@ -1233,6 +1345,7 @@ function renderMatches(){
 
   let list = matchesForTab().filter(passesFilters);
   document.getElementById("dayInfo").innerHTML = dayInfoHTML();
+  playIndexCache = state.role === "editor" ? computePlaySeq() : null;
 
   if(list.length === 0){
     section.innerHTML = `<div class="empty-state">No hay partidos que coincidan con la búsqueda o el filtro.</div>`;
@@ -1444,6 +1557,9 @@ document.getElementById("swapClose").addEventListener("click", closeSwapModal);
 document.getElementById("swapSearchInput").addEventListener("input", e => renderSwapList(e.target.value));
 document.getElementById("swapConfirmCancel").addEventListener("click", cancelSwapSelection);
 document.getElementById("swapConfirmOk").addEventListener("click", applySwapSelection);
+document.getElementById("pairScheduleBtn").addEventListener("click", openPairScheduleModal);
+document.getElementById("pairScheduleClose").addEventListener("click", closePairScheduleModal);
+document.getElementById("pairSearchInput").addEventListener("input", e => renderPairSearchResults(e.target.value));
 
 function renderAll(){
   renderMatches();
