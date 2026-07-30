@@ -164,6 +164,7 @@ body{
 .footer-editor-btn{
   border:1px solid var(--line);background:transparent;color:var(--muted);
   font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;cursor:pointer;
+  margin:0 4px;
 }
 .footer-editor-btn:hover{border-color:var(--blue-2);color:var(--blue);}
 .visit-counter{margin-top:10px;font-size:12px;color:var(--muted);}
@@ -486,6 +487,7 @@ body{
 
 <div class="page-footer">
   <button class="footer-editor-btn" id="roleBtn">Modo organizador</button>
+  <button class="footer-editor-btn" id="backupBtn" style="display:none;">💾 Copia de seguridad</button>
   <div class="visit-counter" id="visitCounter" style="display:none;">👁 <span id="visitCount">0</span> visitas</div>
 </div>
 
@@ -775,6 +777,26 @@ function matchesToRecord(list){
   return out;
 }
 
+/* Copia de seguridad manual: descarga el cuadrante actual (tal cual está en Firebase/local en
+   este momento) como archivo JSON, por si hiciera falta reconstruir los datos más adelante. */
+function backupCurrentState(){
+  const payload = {
+    torneo: "III Verano Frontenis Cortes",
+    exportado: new Date().toISOString(),
+    matches: matchesToRecord(state.matches)
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `frontenis-cortes-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast("Copia de seguridad descargada.");
+}
+
 function applyRemoteRecord(record){
   state.matches = ORIGINAL.map(o => {
     const r = record && record[o.id];
@@ -1047,18 +1069,21 @@ function updateRoleUI(){
   const btn = document.getElementById("roleBtn");
   const hint = document.getElementById("editorHint");
   const visits = document.getElementById("visitCounter");
+  const backupBtn = document.getElementById("backupBtn");
   if(state.role === "editor"){
     chip.classList.add("editor", "show");
     label.textContent = "Editor";
     btn.textContent = "Salir del modo editor";
     hint.classList.add("show");
     visits.style.display = firebaseReady ? "block" : "none";
+    backupBtn.style.display = "inline-block";
   } else {
     chip.classList.remove("editor", "show");
     label.textContent = "Visor";
     btn.textContent = "Modo organizador";
     hint.classList.remove("show");
     visits.style.display = "none";
+    backupBtn.style.display = "none";
   }
   renderMatches();
 }
@@ -1074,6 +1099,7 @@ document.getElementById("roleBtn").addEventListener("click", () => {
     document.getElementById("pinInput").focus();
   }
 });
+document.getElementById("backupBtn").addEventListener("click", backupCurrentState);
 document.getElementById("pinCancel").addEventListener("click", () => document.getElementById("pinOverlay").classList.remove("show"));
 document.getElementById("pinSubmit").addEventListener("click", submitPin);
 document.getElementById("pinInput").addEventListener("keydown", e => { if(e.key === "Enter") submitPin(); });
